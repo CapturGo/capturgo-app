@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "CapturGo",
+    "slug": "captur-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.capturnetwork.mobileapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show your position on the map."
+      }
+    },
+    "android": {
+      "permissions": ["ACCESS_FINE_LOCATION"]
+    },
+    "web": {},
+    "plugins": [
+      "expo-font",
+      "expo-dev-client",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow CapturGo to use your location."
+        }
+      ]
+    ],
+    "developmentClient": {
+      "silentLaunch": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e5d3caf0-675b-444a-b636-2ec5558b323e"
+      }
+    },
+    "newArchEnabled": true
+  }
+}
