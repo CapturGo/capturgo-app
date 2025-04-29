@@ -1,19 +1,29 @@
-import React, { useState } from 'react';
-import { View, Image, SafeAreaView, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Image, SafeAreaView, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { SignIn } from './components/SignIn';
-import { SignUp } from './components/SignUp';
+import Auth from './components/Auth';
 import Main from './components/Main';
 import { styles } from './utils/styles';
+import { supabase } from './utils/supabase';
+import { Session } from '@supabase/supabase-js';
 
 export default function App() {
-  const [showSignUp, setShowSignUp] = useState(false);
-  const [showMain, setShowMain] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const player = useVideoPlayer(require('./assets/video.mp4'), p => { p.loop = true; p.play(); });
 
-  if (showMain) {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+  }, []);
+
+  if (session && session.user) {
     return <Main />;
   }
 
@@ -27,19 +37,12 @@ export default function App() {
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView style={styles.scrollView} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={[styles.logoContainer, { position: 'relative', zIndex: 2 }]}> 
-            {!showSignUp && (
-              <VideoView player={player} style={styles.videoTop} />
-            )}
+            <VideoView player={player} style={styles.videoTop} />
             <Image source={require('./assets/capturgo.png')} style={styles.logo} />
           </View>
-          {showSignUp ? (
-            <SignUp onSignIn={() => setShowSignUp(false)} onSignUpSuccess={() => setShowMain(true)} />
-          ) : (
-            <SignIn onSignUp={() => setShowSignUp(true)} onSignInSuccess={() => setShowMain(true)} />
-          )}
+          <Auth onAuthSuccess={() => null} />
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
   );
 }
-
