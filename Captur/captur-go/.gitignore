@@ -35,14 +35,3 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-
-.npm/_logs/*
-.npm/*
-Library/*
-*.log
-node_modules/
-dist/
-build/
-ios/Pods/
-ios/Podfile.lock
-*.DS_Store
