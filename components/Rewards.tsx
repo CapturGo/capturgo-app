@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -55,11 +55,29 @@ export default function Rewards({ navigation }: NavigationProps) {
           await AsyncStorage.setItem(STORAGE_KEYS.LOCATION_SHARING, 'true');
         }
         
-        // Load CAPT balance
-        const savedBalance = await AsyncStorage.getItem(STORAGE_KEYS.CAPT_BALANCE);
-        if (savedBalance !== null) {
-          setCaptBalance(parseFloat(savedBalance));
+        // Load CAPT balance from Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile, error } = await supabase
+            .from('profiles') 
+            .select('token_balance') 
+            .eq('id', session.user.id)
+            .single();
+
+          if (error) {
+            console.error('Error fetching CAPT balance:', error.message);
+          } else if (profile?.token_balance !== null && profile?.token_balance !== undefined) {
+            setCaptBalance(profile.token_balance);
+          } else {
+             // Handle case where profile or balance might not exist yet
+             console.log('No CAPT balance found for user, defaulting to 0.');
+             setCaptBalance(0); 
+          }
+        } else {
+           console.log('User not logged in, cannot fetch CAPT balance.');
+           setCaptBalance(0);
         }
+
       } catch (error) {
         console.error('Error loading saved state:', error);
       }
@@ -97,18 +115,32 @@ export default function Rewards({ navigation }: NavigationProps) {
     // Handle token increments based on location sharing state
     if (isLocationSharingEnabled) {
       // Start incrementing CAPT tokens when location sharing is enabled
-      intervalRef.current = setInterval(() => {
-        // Random increment between 0.01 and 0.1
-        const increment = Math.random() * (0.1 - 0.01) + 0.01;
+      const maxIncrement = 0.05;
+      const intervalId = setInterval(() => {
         setCaptBalance(prevBalance => {
-          // Round to 2 decimal places for display purposes
-          const newBalance = Math.round((prevBalance + increment) * 100) / 100;
-          // Save the updated balance to AsyncStorage
-          AsyncStorage.setItem(STORAGE_KEYS.CAPT_BALANCE, newBalance.toString())
-            .catch(error => console.error('Error saving CAPT balance:', error));
+          const randomIncrement = Math.random() * maxIncrement;
+          const newBalance = Math.round((prevBalance + randomIncrement) * 100) / 100;
+
+          // Save the updated balance to Supabase
+          const saveBalance = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              const { error } = await supabase
+                .from('profiles')
+                .update({ token_balance: newBalance })
+                .eq('id', session.user.id);
+
+              if (error) {
+                console.error('Error saving CAPT balance to Supabase:', error.message);
+              }
+            }
+          };
+          saveBalance(); // Call the async function to save
+          
           return newBalance;
         });
       }, 1000);
+      intervalRef.current = intervalId;
     } else if (intervalRef.current) {
       // Stop incrementing when location sharing is disabled
       clearInterval(intervalRef.current);

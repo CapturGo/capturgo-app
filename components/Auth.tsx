@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Alert, StyleSheet, View, AppState, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Alert, AppState, Text, TextInput, TouchableOpacity, View, Linking, ActivityIndicator } from 'react-native'
 import { supabase } from '../utils/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { styles as globalStyles } from '../utils/styles'
@@ -59,16 +59,16 @@ export default function Auth({ onAuthSuccess }: { onAuthSuccess?: () => void }) 
 
   async function signUpWithEmail() {
     setError(null)
-    if (!acceptTerms) {
-      setError('Please accept the terms.')
-      return
-    }
     if (!email || !password || !username) {
       setError('Fill all required fields.')
       return
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match.')
+      return
+    }
+    if (!acceptTerms) {
+      setError('Please accept the terms.')
       return
     }
     
@@ -99,6 +99,19 @@ export default function Auth({ onAuthSuccess }: { onAuthSuccess?: () => void }) 
     }
     setLoading(false)
   }
+
+  const openTerms = () => {
+    // Replace with your actual Terms & Privacy URL
+    const url = 'https://www.capturgo.com/privacy-policy'; 
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        console.log("Don't know how to open URI: " + url);
+        Alert.alert("Cannot Open URL", "Could not open the terms and privacy page.");
+      }
+    });
+  };
 
   return (
     <>
@@ -208,17 +221,23 @@ export default function Auth({ onAuthSuccess }: { onAuthSuccess?: () => void }) 
             </View>
             
             {/* Terms Acceptance */}
-            <TouchableOpacity
-              style={globalStyles.termsContainer}
-              onPress={() => setAcceptTerms(!acceptTerms)}
-            >
+            <View style={globalStyles.termsContainer}> 
               <Text style={globalStyles.termsText}>
-                I accept CapturGo <Text style={globalStyles.termsBold}>Terms & Privacy</Text>
+                I accept CapturGo{' '}
+                <Text 
+                  style={globalStyles.termsBold} 
+                  onPress={openTerms} 
+                >
+                  Terms & Privacy
+                </Text>
               </Text>
-              <View style={[globalStyles.checkbox, acceptTerms && globalStyles.checkboxChecked]}>
+              <TouchableOpacity 
+                style={[globalStyles.checkbox, acceptTerms && globalStyles.checkboxChecked]}
+                onPress={() => setAcceptTerms(!acceptTerms)} 
+              >
                 {acceptTerms && <Ionicons name="checkmark" size={18} color="#000" />}
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </View>
@@ -249,5 +268,3 @@ export default function Auth({ onAuthSuccess }: { onAuthSuccess?: () => void }) 
     </>
   )
 }
-
-// No need for local styles as we're using the global styles

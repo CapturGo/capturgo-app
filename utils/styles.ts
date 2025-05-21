@@ -494,7 +494,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
     padding: 8,
-    width: 80,
+    width: 90,
     height: 60,
   },
   navButtonActive: {

@@ -15,7 +15,8 @@
         "UIBackgroundModes": [
           "location"
         ]
-      }
+      },
+      "audioSessionMode": "ambient"
     },
     "android": {
       "permissions": [

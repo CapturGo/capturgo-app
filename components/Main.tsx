@@ -7,7 +7,6 @@ import { supabase } from '../utils/supabase';
 import { styles as globalStyles } from '../utils/styles';
 import NavigationBar from './NavigationBar';
 import { NavigationProps } from '../App';
-// Note: We're not using MapBackground here since we need a fully interactive map
 
 // Storage keys from Rewards component
 const STORAGE_KEYS = {
@@ -21,6 +20,30 @@ export default function Main({ navigation }: NavigationProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
   const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get user ID from Supabase session
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error fetching session:', error.message);
+          setErrorMsg('Could not retrieve user session.');
+          return;
+        }
+        if (session?.user?.id) {
+          setUserId(session.user.id);
+        } else {
+          setErrorMsg('User not logged in.'); // Or handle appropriately
+        }
+      } catch (e) {
+        console.error('Exception fetching session:', e);
+        setErrorMsg('An unexpected error occurred while fetching user data.');
+      }
+    };
+    fetchUserId();
+  }, []);
 
   // Load location sharing state from AsyncStorage
   useEffect(() => {
@@ -41,9 +64,11 @@ export default function Main({ navigation }: NavigationProps) {
     loadLocationSharingState();
   }, []);
 
-  // Request location permissions and initialize map on component mount
+  // Request permissions, then fetch and update location periodically
   useEffect(() => {
-    (async () => {
+    let locationIntervalId: NodeJS.Timeout | null = null;
+
+    const requestPermissionsAndSetupUpdates = async () => {
       try {
         // Request location permissions
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -52,27 +77,85 @@ export default function Main({ navigation }: NavigationProps) {
           return;
         }
 
-        // Get current location
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced // Balance between accuracy and battery usage
-        });
-        
-        // Update state with location data
-        setLocation(currentLocation);
-        setMapRegion({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          latitudeDelta: 0.01, // Adjust zoom level as needed
-          longitudeDelta: 0.01, // Adjust zoom level as needed
-        });
-      } catch (error) {
-        setErrorMsg('Could not fetch location');
-        console.error('Location error:', error);
+        // Function to fetch and update location
+        const updateLocation = async () => {
+          try {
+            const currentLocation = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced, // Balance between accuracy and battery usage
+            });
+            
+            // Update state with new location data
+            setLocation(currentLocation);
+            // Update mapRegion to center on the new location, keeping previous zoom level
+            setMapRegion((prevRegion) => ({
+              latitude: currentLocation.coords.latitude,
+              longitude: currentLocation.coords.longitude,
+              latitudeDelta: prevRegion?.latitudeDelta || 0.01, // Use previous delta or default
+              longitudeDelta: prevRegion?.longitudeDelta || 0.01, // Use previous delta or default
+            }));
+            setErrorMsg(null); // Clear any previous location error
+          } catch (error) {
+            setErrorMsg('Could not fetch current location');
+            console.error('Error fetching current location:', error);
+            // Interval continues, allowing for recovery if the error is transient
+          }
+        };
+
+        // Fetch initial location immediately
+        await updateLocation();
+
+        // Set up interval to update location every second
+        locationIntervalId = setInterval(updateLocation, 1000);
+
+      } catch (error) { // Catches errors from requestForegroundPermissionsAsync
+        setErrorMsg('Error requesting location permissions');
+        console.error('Permission error:', error);
       }
-    })();
-    
-    // No cleanup needed as we're not subscribing to location updates
-  }, []);
+    };
+
+    requestPermissionsAndSetupUpdates();
+
+    // Cleanup interval on component unmount
+    return () => {
+      if (locationIntervalId) {
+        clearInterval(locationIntervalId);
+      }
+    };
+  }, []); // Empty dependency array: runs once on mount to set up permissions and interval
+
+  // Function to send location data to Supabase
+  const sendLocationToSupabase = async (locationData: Location.LocationObject, currentUserId: string) => {
+    if (!currentUserId) {
+      console.log('User ID not available, skipping location send.');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('locations').insert([
+        {
+          user_id: currentUserId,
+          latitude: locationData.coords.latitude,
+          longitude: locationData.coords.longitude,
+        },
+      ]);
+      if (error) {
+        console.error('Error sending location to Supabase:', error.message);
+        // Optionally set an error message for the UI, but be mindful of flooding the UI with errors every second
+      } else {
+        console.log('Location sent to Supabase');
+      }
+    } catch (e) {
+      console.error('Exception sending location to Supabase:', e);
+    }
+  };
+
+  // Send location to Supabase whenever location updates, if sharing is enabled
+  useEffect(() => {
+    if (isLocationSharingEnabled && location && userId) {
+      sendLocationToSupabase(location, userId);
+    }
+    // No interval or cleanup needed here as send is triggered by dependency changes
+  }, [location, isLocationSharingEnabled, userId]); // Dependencies: location, sharing status, user ID
+
   // Determine what content to show based on state
   let content;
   if (errorMsg) {
